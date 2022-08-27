@@ -92,6 +92,7 @@ def scatter(input,index,src):
     for i in range(index.shape[0]):
         for j in range(index.shape[1]):
             input[i][index[i][j]] = src[i][j]
+    return input
 
 def softLabel(label, iou):
     softlb = paddle.zeros(shape=[label.shape[0], 867])
@@ -159,7 +160,7 @@ def train_epoch(model, optimizer, ds, freq=None, mode='hinge'):
 
             if mode == 'mean':  # mean loss
                 res = res[:, :866]
-                res = paddle.concat([res, res.mean(dim=-1, keepdim=True)], axis=-1)
+                res = paddle.concat([res, res.mean(axis=-1, keepdim=True)], axis=-1)
                 loss = F.cross_entropy(res, label.cuda(), weight)
 
             if mode == 'meanbg':  # mean loss only on bg

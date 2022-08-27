@@ -6,15 +6,38 @@ import paddle.nn as nn
 from simple_tokenizer import SimpleTokenizer as _Tokenizer
 from typing import Any, Union, List
 
-arch = {'name': 'CLIP', 'embed_dim':512,
-        'image_resolution': 224, 'vision_layers': 12,
-        'vision_width': 768, 'vision_patch_size': 32,
-        'context_length': 77, 'vocab_size': 49408,
-        'transformer_width': 512, 'transformer_heads': 8,
-        'transformer_layers': 12,'qkv_bias': True,'proj':True, 'pre_norm':True}
-head = {'name': 'CLIPHead'}
-model = CLIPWrapper(architecture=arch, head=head)
+
 _tokenizer = _Tokenizer()
+
+
+def load_clip_to_cpu():
+    # url = clip._MODELS["ViT-B/32"]
+    # model_path = clip._download(url, os.path.expanduser("~/.cache/clip"))
+    #
+    # try:
+    #     # loading JIT archive
+    #     print("jit version")
+    #     model = torch.jit.load(model_path, map_location='cpu').eval()
+    #     state_dict = None
+    #
+    # except RuntimeError:
+    #     state_dict = torch.load(model_path, map_location='cpu')
+    #
+    # model = clip.build_model(state_dict or model.state_dict())
+    #
+    # return model
+    arch = {'name': 'CLIP', 'embed_dim': 512,
+            'image_resolution': 224, 'vision_layers': 12,
+            'vision_width': 768, 'vision_patch_size': 32,
+            'context_length': 77, 'vocab_size': 49408,
+            'transformer_width': 512, 'transformer_heads': 8,
+            'transformer_layers': 12, 'qkv_bias': True, 'proj': True, 'pre_norm': True}
+    head = {'name': 'CLIPHead'}
+    model = CLIPWrapper(architecture=arch, head=head)
+    state_dict = paddle.load("ViT-B-32.pdparams")['state_dict']
+    model.set_state_dict(state_dict)
+    return model
+
 
 def tokenize(texts: Union[str, List[str]], context_length: int = 77, truncate: bool = False):
     """
