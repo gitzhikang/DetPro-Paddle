@@ -26,9 +26,18 @@ if __name__ == '__main__':
     # np.zeros(shape=[2,3],dtype="float32")
     # a = torch.range(1, 6).resize(2,3)
     # b=paddle.
-    a=[1]
-    cons_lr=1
-    b=[cons_lr for _ in a]
-    print(float(b))
+
+
+    a = torch.rand(4,6)
+    b = torch.rand(4,6)
+    # c=torch.ones(4,5)
+    # a[:, [0, 2]] = c[:, [0, 2]]
+    # print(a)
+    # print(b)
+    # print(c)
+    # print(c.shape)
+    print(a)
+    det_bboxes = a[:,1:6]
+    print(det_bboxes)
     # print(repeat(a,torch.tensor([2,2])))
 
