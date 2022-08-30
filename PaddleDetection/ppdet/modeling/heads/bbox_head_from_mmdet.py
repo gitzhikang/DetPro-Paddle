@@ -15,7 +15,7 @@ from ppdet.modeling.losses import SmoothL1Loss
 
 from functools import partial
 from six.moves import map, zip
-
+from .file.roiheads.utils import new_zeros, new_ones, new_tensor, view, type, get_shape
 
 def multi_apply(func, *args, **kwargs):
     pfunc = partial(func, **kwargs) if kwargs else func
@@ -107,15 +107,18 @@ class BBoxHead(nn.Layer):
     def forward(self, x):
         if self.with_avg_pool:
             x = self.avg_pool(x)
-        x = x.view(x.size(0), -1)
+        # x = view(x, (x.size(0), -1))
+        x = view(x, (get_shape(x, 0), -1))
         cls_score = self.fc_cls(x) if self.with_cls else None
         bbox_pred = self.fc_reg(x) if self.with_reg else None
         return cls_score, bbox_pred
 
     def _get_target_single(self, pos_bboxes, neg_bboxes, pos_gt_bboxes,
                            pos_gt_labels, cfg):
-        num_pos = pos_bboxes.size(0)
-        num_neg = neg_bboxes.size(0)
+        # num_pos = pos_bboxes.size(0)
+        num_pos = get_shape(pos_bboxes, 0)
+        # num_neg = neg_bboxes.size(0)
+        num_neg = get_shape(neg_bboxes, 0)
         num_samples = num_pos + num_neg
 
         # original implementation uses new_zeros since BG are set to be 0
@@ -124,9 +127,12 @@ class BBoxHead(nn.Layer):
         labels = pos_bboxes.new_full((num_samples, ),
                                      self.num_classes,
                                      dtype='int64')
-        label_weights = pos_bboxes.new_zeros(num_samples)
-        bbox_targets = pos_bboxes.new_zeros(num_samples, 4)
-        bbox_weights = pos_bboxes.new_zeros(num_samples, 4)
+        label_weights = new_zeros(num_samples, pos_bboxes)
+        # label_weights = pos_bboxes.new_zeros(num_samples)
+        bbox_targets = new_zeros((num_samples, 4), pos_bboxes)
+        # bbox_targets = pos_bboxes.new_zeros(num_samples, 4)
+        bbox_weights = new_zeros((num_samples, 4), pos_bboxes)
+        # bbox_weights = pos_bboxes.new_zeros(num_samples, 4)
         if num_pos > 0:
             labels[:num_pos] = pos_gt_labels
             pos_weight = 1.0 if cfg.pos_weight <= 0 else cfg.pos_weight
@@ -197,21 +203,22 @@ class BBoxHead(nn.Layer):
                 if self.reg_decoded_bbox:
                     bbox_pred = self.bbox_coder.decode(rois[:, 1:], bbox_pred)
                 if self.reg_class_agnostic:
-                    pos_bbox_pred = bbox_pred.view(
-                        bbox_pred.size(0), 4)[pos_inds.type('bool')]
+                    pos_bbox_pred = view(bbox_pred,
+                        (get_shape(bbox_pred, 0)))[type(pos_inds, paddle.bool)]
                 else:
-                    pos_bbox_pred = bbox_pred.view(
-                        bbox_pred.size(0), -1,
-                        4)[pos_inds.type('bool'),
-                           labels[pos_inds.type('bool')]]
+                    pos_bbox_pred = view(
+                        bbox_pred,(get_shape(bbox_pred, 0), -1,
+                        4))[type(pos_inds, paddle.bool),
+                           labels[type(pos_inds, paddle.bool)]]
                 losses['loss_bbox'] = self.loss_bbox(
                     pos_bbox_pred,
-                    bbox_targets[pos_inds.type('bool')],
-                    bbox_weights[pos_inds.type('bool')],
-                    avg_factor=bbox_targets.size(0),
+                    bbox_targets[type(pos_inds, paddle.bool)],
+                    bbox_weights[type(pos_inds, paddle.bool)],
+                    # avg_factor=bbox_targets.size(0),
+                    avg_factor=get_shape(bbox_targets, 0),
                     reduction_override=reduction_override)
             else:
-                losses['loss_bbox'] = bbox_pred[pos_inds].sum()
+                losses['loss_bbox'] = bbox_pred[pos_inds].sum()# 原来只要是paddle有的函数，也可以直接x.sum()
         return losses
 
     # @force_fp32(apply_to=('cls_score', 'bbox_pred'))
@@ -232,18 +239,20 @@ class BBoxHead(nn.Layer):
             bboxes = self.bbox_coder.decode(
                 rois[:, 1:], bbox_pred, max_shape=img_shape)
         else:
-            bboxes = rois[:, 1:].clone()
+            bboxes = paddle.clone(rois[:, 1:])
             if img_shape is not None:
                 bboxes[:, [0, 2]].clamp_(min=0, max=img_shape[1])
                 bboxes[:, [1, 3]].clamp_(min=0, max=img_shape[0])
 
-        if rescale and bboxes.size(0) > 0:
+        if rescale and get_shape(bboxes, 0) > 0:
             if isinstance(scale_factor, float):
                 bboxes /= scale_factor
             else:
-                scale_factor = bboxes.new_tensor(scale_factor)
-                bboxes = (bboxes.view(bboxes.size(0), -1, 4) /
-                          scale_factor).view(bboxes.size()[0], -1)
+                scale_factor = new_tensor(scale_factor, bboxes)
+                # bboxes = (bboxes.view(bboxes.size(0), -1, 4) /
+                #           scale_factor).view(bboxes.size()[0], -1)
+                bboxes = view((view(bboxes, (get_shape(bboxes,0), -1, 4)) /
+                               scale_factor), (get_shape(bboxes, 0), -1))
 
         if cfg is None:
             return bboxes, scores
@@ -307,14 +316,18 @@ class BBoxHead(nn.Layer):
             >>>                    pos_is_gts, img_metas)
             >>> print(bboxes_list)
         """
-        img_ids = rois[:, 0].long().unique(sorted=True)
-        assert img_ids.numel() <= len(img_metas)
+        # img_ids = rois[:, 0].long().unique(sorted=True)
+        tmp = paddle.floor(rois[:, 0])
+        img_ids = paddle.unique(tmp)
+        # assert img_ids.numel() <= len(img_metas)
+        assert paddle.numel(img_ids) <= len(img_metas)
 
         bboxes_list = []
         for i in range(len(img_metas)):
             inds = paddle.nonzero(
                 rois[:, 0] == i, as_tuple=False).squeeze(axis=1)
-            num_rois = inds.numel()
+            # num_rois = inds.numel()
+            num_rois = paddle.numel(inds)
 
             bboxes_ = rois[inds, 1:]
             label_ = labels[inds]
@@ -327,10 +340,10 @@ class BBoxHead(nn.Layer):
 
             # filter gt bboxes
             pos_keep = 1 - pos_is_gts_
-            keep_inds = pos_is_gts_.new_ones(num_rois)
+            keep_inds = new_ones(num_rois, pos_is_gts_)
             keep_inds[:len(pos_is_gts_)] = pos_keep
 
-            bboxes_list.append(bboxes[keep_inds.type('bool')])
+            bboxes_list.append(bboxes[type(keep_inds, paddle.bool)]) #bboxes_list是一个list，当然可以append
 
         return bboxes_list
 
@@ -347,15 +360,15 @@ class BBoxHead(nn.Layer):
         Returns:
             Tensor: Regressed bboxes, the same shape as input rois.
         """
-        assert rois.size(1) == 4 or rois.size(1) == 5, repr(rois.shape)
+        assert get_shape(rois, 1) == 4 or get_shape(rois, 1) == 5, repr(paddle.shape(rois))# 返回值可能有些问题，就是我感觉返回值除了最后的形状还有前面的八股
 
         if not self.reg_class_agnostic:
             label = label * 4
             inds = paddle.stack((label, label + 1, label + 2, label + 3), 1)
             bbox_pred = paddle.gather(bbox_pred, inds, 1)  # 這裏可能會出問題，gather上了paddle的幫助文檔了
-        assert bbox_pred.size(1) == 4
+        assert get_shape(bbox_pred, 1) == 4
 
-        if rois.size(1) == 4:
+        if get_shape(rois, 1) == 4:
             new_rois = self.bbox_coder.decode(
                 rois, bbox_pred, max_shape=img_meta['img_shape'])
         else:

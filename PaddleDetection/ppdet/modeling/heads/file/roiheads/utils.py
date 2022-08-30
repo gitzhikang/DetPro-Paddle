@@ -13,3 +13,12 @@ def new_ones(shape,src):
 
 def new_zeros(shape,src):
     return paddle.to_tensor(np.zeros(shape=shape),dtype=src.dtype,place=src.place)
+
+def view(data, shape):
+    return paddle.reshape(x=data, shape=shape)
+
+def type(data, type):# 张量转化为特定类型
+    return paddle.to_tensor(data=data, dtype=type)
+
+def get_shape(x,k):
+    return x.shape[k]
