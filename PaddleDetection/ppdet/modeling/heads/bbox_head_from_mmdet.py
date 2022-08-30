@@ -75,33 +75,49 @@ class BBoxHead(nn.Layer):
             in_channels *= self.roi_feat_area
         if self.with_cls:
             # need to add background class
-            self.fc_cls = nn.Linear(in_channels, num_classes + 1, bias_attr=True)
-        if self.with_reg:
-            out_dim_reg = 4 if reg_class_agnostic else 4 * num_classes
-            self.fc_reg = nn.Linear(in_channels, out_dim_reg, bias_attr=True)
-        self.debug_imgs = None
-
-    def init_weights(self):
-        # conv layers are already initialized by ConvModule
-        if self.with_cls:
-            # nn.init.normal_(self.fc_cls.weight, 0, 0.01)
-            self.fc_cls.weight = paddle.framework.ParamAttr(
+            weight_attr = paddle.framework.ParamAttr(
                 name="fc_cls.weight",
                 initializer=paddle.nn.initializer.Normal(mean=0.0, std=0.01))
 
             # nn.init.constant_(self.fc_cls.bias, 0)
-            self.fc_cls.bias = paddle.ParamAttr(
+            bias_attr = paddle.ParamAttr(
                 name="bias",
                 initializer=paddle.nn.initializer.Constant(value=0))
+            self.fc_cls = nn.Linear(in_channels, num_classes + 1,weight_attr= weight_attr,bias_attr=bias_attr)
         if self.with_reg:
             # nn.init.normal_(self.fc_reg.weight, 0, 0.001)
-            self.fc_cls.weight = paddle.framework.ParamAttr(
-                name="fc_cls.weight",
+            weight_attr = paddle.framework.ParamAttr(
+                name="fc_reg.weight",
                 initializer=paddle.nn.initializer.Normal(mean=0.0, std=0.001))
             # nn.init.constant_(self.fc_reg.bias, 0)
-            self.fc_cls.bias = paddle.ParamAttr(
+            bias_attr = paddle.ParamAttr(
                 name="bias",
                 initializer=paddle.nn.initializer.Constant(value=0))
+            out_dim_reg = 4 if reg_class_agnostic else 4 * num_classes
+            self.fc_reg = nn.Linear(in_channels, out_dim_reg, weight_attr=weight_attr,bias_attr=bias_attr)
+        self.debug_imgs = None
+
+    # def init_weights(self):
+    #     # conv layers are already initialized by ConvModule
+    #     if self.with_cls:
+    #         # nn.init.normal_(self.fc_cls.weight, 0, 0.01)
+    #         self.fc_cls.weight = paddle.framework.ParamAttr(
+    #             name="fc_cls.weight",
+    #             initializer=paddle.nn.initializer.Normal(mean=0.0, std=0.01))
+    #
+    #         # nn.init.constant_(self.fc_cls.bias, 0)
+    #         self.fc_cls.bias = paddle.ParamAttr(
+    #             name="bias",
+    #             initializer=paddle.nn.initializer.Constant(value=0))
+    #     if self.with_reg:
+    #         # nn.init.normal_(self.fc_reg.weight, 0, 0.001)
+    #         self.fc_cls.weight = paddle.framework.ParamAttr(
+    #             name="fc_cls.weight",
+    #             initializer=paddle.nn.initializer.Normal(mean=0.0, std=0.001))
+    #         # nn.init.constant_(self.fc_reg.bias, 0)
+    #         self.fc_cls.bias = paddle.ParamAttr(
+    #             name="bias",
+    #             initializer=paddle.nn.initializer.Constant(value=0))
 
     # @auto_fp16()
     def forward(self, x):
