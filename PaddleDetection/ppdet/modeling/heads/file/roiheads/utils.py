@@ -10,3 +10,6 @@ def new_tensor(data,src):
 
 def new_ones(shape,src):
     return paddle.to_tensor(np.ones(shape=shape),dtype=src.dtype,place=src.place)
+
+def new_zeros(shape,src):
+    return paddle.to_tensor(np.zeros(shape=shape),dtype=src.dtype,place=src.place)

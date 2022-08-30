@@ -20,11 +20,11 @@ import paddle
 from ppdet.core.workspace import register, create
 from .meta_arch import BaseArch
 
-__all__ = ['MaskRCNN']
+__all__ = ['VildDetpro']
 
 
 @register
-class MaskRCNN(BaseArch):
+class VildDetpro(BaseArch):
     """
     Mask R-CNN network, see https://arxiv.org/abs/1703.06870
 
@@ -117,6 +117,13 @@ class MaskRCNN(BaseArch):
             mask_pred = self.mask_post_process(mask_out, bbox_pred, bbox_num,
                                                origin_shape)
             return bbox_pred, bbox_num, mask_pred
+    def __forwar(self):
+        body_feats = self.backbone(self.inputs)
+        if self.neck is not None:
+            body_feats = self.neck(body_feats)
+        if self.training:
+            rois, rois_num, rpn_loss = self.rpn_head(body_feats, self.inputs)
+
 
     def get_loss(self, ):
         bbox_loss, mask_loss, rpn_loss = self._forward()
