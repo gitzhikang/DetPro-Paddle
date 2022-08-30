@@ -29,6 +29,8 @@ from . import reid
 from . import mot
 from . import transformers
 from . import assigners
+from . import convfc_bbox_head
+from . import bbox_head_from_mmdet
 
 from .ops import *
 from .backbones import *
@@ -43,3 +45,5 @@ from .reid import *
 from .mot import *
 from .transformers import *
 from .assigners import *
+from .convfc_bbox_head import *
+from .bbox_head_from_mmdet import *
