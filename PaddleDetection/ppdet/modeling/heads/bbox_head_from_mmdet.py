@@ -54,7 +54,7 @@ class BBoxHead(nn.Layer):
         super(BBoxHead, self).__init__()
         assert with_cls or with_reg
         self.with_avg_pool = with_avg_pool
-        # self.with_cls = build_loss(with_cls)  #这里还是不太懂
+        # self.with_cls = build_loss(with_cls) 
         # self.with_reg = build_loss(with_reg)
         self.roi_feat_size = _pair(roi_feat_size)
         self.roi_feat_area = self.roi_feat_size[0] * self.roi_feat_size[1]

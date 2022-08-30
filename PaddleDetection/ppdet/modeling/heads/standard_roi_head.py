@@ -756,16 +756,6 @@ class StandardRoiHead(nn.Layer):
                 clip_image_features = self.img2pil2feat(img_no_normalize[i], bboxes_single_image[:, 1:])
                 clip_image_features15 = self.img2pil2feat(img_no_normalize[i], bboxes15[:, 1:])
 
-                # clip_image_features = self.clip_image_forward((img_metas[i],), bboxes_single_image, (num_proposals_per_img[i],))
-                # clip_image_features15 = self.clip_image_forward((img_metas[i],), bboxes15,(num_proposals_per_img[i],),True)
-
-                # clip_image_features_align = self.clip_image_forward_align(img, bboxes,(num_proposals_per_img[i],))
-                # clip_image_features15_align = self.clip_image_forward_align(img, bboxes15,(num_proposals_per_img[i],))
-                # clip_image_features_single_align = clip_image_features_align + clip_image_features15_align
-                # clip_image_features_single_align = clip_image_features_single_align.float()
-                # clip_image_features_single_align = torch.nn.functional.normalize(clip_image_features_single_align, p=2, dim=1)
-                # clip_image_features_ensemble_align.append(clip_image_features_single_align)
-
                 clip_image_features_single = clip_image_features + clip_image_features15
                 clip_image_features_single = clip_image_features_single.astype('float32')
                 clip_image_features_single = paddle.nn.functional.normalize(clip_image_features_single, p=2, axis=1)

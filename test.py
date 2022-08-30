@@ -1,7 +1,7 @@
 # import paddle
 import torch
 import numpy as np
-
+import cv2
 
 def repeat(input,repeatList):
     if(repeatList.dim()==1):
@@ -27,17 +27,18 @@ if __name__ == '__main__':
     # a = torch.range(1, 6).resize(2,3)
     # b=paddle.
 
+    with open('/Users/songzhikang/Downloads/111.jpg', 'rb') as f:
+        im = f.read()
+    data = np.frombuffer(im, dtype='uint8')
+    im = cv2.imdecode(data, 1)  # BGR mode, but need RGB mode
 
-    a = torch.rand(4,6)
-    b = torch.rand(4,6)
+    im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
     # c=torch.ones(4,5)
     # a[:, [0, 2]] = c[:, [0, 2]]
     # print(a)
     # print(b)
     # print(c)
     # print(c.shape)
-    print(a)
-    det_bboxes = a[:,1:6]
-    print(det_bboxes)
+    print(im.shape[:2])
     # print(repeat(a,torch.tensor([2,2])))
 

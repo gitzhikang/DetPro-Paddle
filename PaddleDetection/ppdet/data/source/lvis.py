@@ -24,6 +24,7 @@ import os.path as osp
 import tempfile
 import warnings
 from collections import OrderedDict
+import pickle
 
 import numpy as np
 
@@ -307,6 +308,7 @@ class COCODataSet(DetDataset):
                  dataset_dir=None,
                  image_dir=None,
                  anno_path=None,
+                 proposal_path =None,
                  data_fields=['image'],
                  sample_num=-1,
                  load_crowd=False,
@@ -319,6 +321,8 @@ class COCODataSet(DetDataset):
         self.load_crowd = load_crowd
         self.allow_empty = allow_empty
         self.empty_ratio = empty_ratio
+        f = open(proposal_path, 'rb')
+        self.proposals = pickle.load(f)
 
     def _sample_empty(self, records, num):
         # if empty_ratio is out of [0. ,1.), do not sample the records
@@ -351,17 +355,41 @@ class COCODataSet(DetDataset):
             )
         coco = LVIS(anno_path)
         img_ids = coco.get_img_ids()
-        img_ids.sort()
+        # img_ids.sort()
         cat_ids = coco.get_cat_ids()
         records = []
         empty_records = []
         ct = 0
-
+        self.ignore_ids = []
+        cats = {}
         self.catid2clsid = dict({catid: i for i, catid in enumerate(cat_ids)})
         self.cname2cid = dict({
             coco.load_cats(catid)[0]['name']: clsid
             for catid, clsid in self.catid2clsid.items()
         })
+
+        for cat in coco.cats:
+            cat_info = coco.cats[cat]
+            if cat_info['frequency'] == 'r':
+                self.ignore_ids.append(cat)
+            else:
+                cats[cat] = self.coco.cats[cat]
+        self.id_idx = None
+        # """
+        self.id_idx = {}
+        for idx, img_id in enumerate(img_ids):
+            self.id_idx[img_id] = idx
+        rare_cls_img_ids = []
+        cat_ids = []
+        cnt = 0
+        for cat in coco.cats:
+            cat_info = coco.cats[cat]
+            if cat_info['frequency'] == 'r':
+                continue
+            cat_ids.append(cat)
+            cnt += 1
+            rare_cls_img_ids.extend(self.coco.cat_img_map[cat])
+        img_ids = np.unique(rare_cls_img_ids).tolist()
 
         if 'annotations' not in coco.dataset:
             self.load_image_only = True
@@ -369,7 +397,8 @@ class COCODataSet(DetDataset):
                            'and load image information only.'.format(anno_path))
         for img_id in img_ids:
             img_anno = coco.load_imgs([img_id])[0]
-            im_fname = img_anno['file_name']
+            im_fname = img_anno['coco_url'].replace(
+                'http://images.cocodataset.org/', '')
             im_w = float(img_anno['width'])
             im_h = float(img_anno['height'])
 
@@ -389,6 +418,8 @@ class COCODataSet(DetDataset):
 
             coco_rec = {
                 'im_file': im_path,
+                'ori_filename':im_fname,
+
                 'im_id': np.array([img_id]),
                 'h': im_h,
                 'w': im_w,
@@ -402,7 +433,8 @@ class COCODataSet(DetDataset):
                 bboxes = []
                 is_rbox_anno = False
                 gt_bboxes_ignore = []
-                gt_masks_ann = []
+                pre_computed_proposal = self.proposals[self.id_idx[img_id]]
+
 
                 for inst in instances:
                     # check gt bbox
@@ -427,6 +459,15 @@ class COCODataSet(DetDataset):
                         x2 = x1 + box_w
                         y2 = y1 + box_h
                     eps = 1e-5
+                    if inst['area'] <= 0 or w < 1 or h < 1:
+                        continue
+                    if inst['category_id'] not in self.cat_ids:
+                        continue
+                    if inst['category_id'] in self.ignore_ids:
+                        # print('ignore {}'.format(ann['category_id']))
+                        continue
+
+
                     if inst.get('iscrowd', False):
                         gt_bboxes_ignore.append([
                             round(float(x), 3) for x in [x1, y1, x2, y2]
@@ -438,8 +479,6 @@ class COCODataSet(DetDataset):
                         if is_rbox_anno:
                             inst['clean_rbox'] = [xc, yc, box_w, box_h, angle]
                         bboxes.append(inst)
-                        if self.load_semantic and 'semantic' in self.data_fields:
-                            gt_masks_ann.append(inst.get('segmentation', None))
 
                     else:
                         logger.warning(
@@ -498,7 +537,7 @@ class COCODataSet(DetDataset):
                         'gt_rbox': gt_rbox,
                         'gt_poly': gt_poly,
                         'bboxes_ignore':gt_bboxes_ignore,
-
+                        'pre_computed_proposal':pre_computed_proposal
                     }
                 else:
                     gt_rec = {
@@ -506,7 +545,8 @@ class COCODataSet(DetDataset):
                         'gt_class': gt_class,
                         'gt_bbox': gt_bbox,
                         'gt_poly': gt_poly,
-                        'bboxes_ignore': gt_bboxes_ignore
+                        'bboxes_ignore': gt_bboxes_ignore,
+                        'pre_computed_proposal': pre_computed_proposal
                     }
 
                 for k, v in gt_rec.items():
@@ -518,7 +558,7 @@ class COCODataSet(DetDataset):
                     seg_path = os.path.join(self.dataset_dir, 'stuffthingmaps',
                                             'train2017', im_fname[:-3] + 'png')
                     coco_rec.update({'semantic': seg_path})
-                    coco_rec.update({'masks': gt_masks_ann})
+
 
             logger.debug('Load file: {}, im_id: {}, h: {}, w: {}.'.format(
                 im_path, img_id, im_h, im_w))

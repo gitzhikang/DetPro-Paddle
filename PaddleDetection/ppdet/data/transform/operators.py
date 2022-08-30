@@ -121,7 +121,7 @@ class Decode(BaseOperator):
         if 'image' not in sample:
             with open(sample['im_file'], 'rb') as f:
                 sample['image'] = f.read()
-            sample.pop('im_file')
+            # sample.pop('im_file')
 
         im = sample['image']
         data = np.frombuffer(im, dtype='uint8')
@@ -147,7 +147,7 @@ class Decode(BaseOperator):
                 "width: {} in annotation, and update sample['w'] by actual "
                 "image width.".format(im.shape[1], sample['w']))
             sample['w'] = im.shape[1]
-
+        sample['ori_shape'] = np.array(im.shape, dtype=np.float32)
         sample['im_shape'] = np.array(im.shape[:2], dtype=np.float32)
         sample['scale_factor'] = np.array([1., 1.], dtype=np.float32)
         return sample
@@ -381,6 +381,8 @@ class NormalizeImage(BaseOperator):
             1.(optional) Scale the image to [0,1]
             2. Each pixel minus mean and is divided by std
         """
+        #额外保存为经过normalize的图片
+        sample['img_no_normalize'] = sample['image']
         im = sample['image']
         im = im.astype(np.float32, copy=False)
         mean = np.array(self.mean)[np.newaxis, np.newaxis, :]
@@ -393,6 +395,12 @@ class NormalizeImage(BaseOperator):
         im /= std
 
         sample['image'] = im
+        sample['img_norm_cfg'] = {
+            'mean': self.mean,
+            'std':self.std,
+            'to_rgb':True
+
+        }
         return sample
 
 
@@ -706,6 +714,9 @@ class RandomFlip(BaseOperator):
 
             sample['flipped'] = True
             sample['image'] = im
+            #添加
+            sample['flip_direction'] = 'horizontal'
+
         return sample
 
 
@@ -2042,6 +2053,7 @@ class Pad(BaseOperator):
 
         if h == im_h and w == im_w:
             sample['image'] = im.astype(np.float32)
+            sample['pad_shape'] = sample['image'].shape
             return sample
 
         if self.pad_mode == -1:
@@ -2069,6 +2081,7 @@ class Pad(BaseOperator):
         if 'gt_keypoint' in sample and len(sample['gt_keypoint']) > 0:
             sample['gt_keypoint'] = self.apply_keypoint(sample['gt_keypoint'],
                                                         offsets)
+        sample['pad_shape'] = sample['image'].shape
 
         return sample
 
