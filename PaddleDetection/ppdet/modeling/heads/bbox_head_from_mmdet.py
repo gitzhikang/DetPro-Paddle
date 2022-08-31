@@ -15,7 +15,8 @@ from ppdet.modeling.losses import SmoothL1Loss
 
 from functools import partial
 from six.moves import map, zip
-from .file.roiheads.utils import new_zeros, new_ones, new_tensor, view, type, get_shape
+from .file.roiheads.utils import new_zeros, new_ones, new_tensor, view, type, get_shape, new_full
+from .file.roiheads.DeltaXYWHBBoxCoder import DeltaXYWHBBoxCoder
 
 def multi_apply(func, *args, **kwargs):
     pfunc = partial(func, **kwargs) if kwargs else func
@@ -23,8 +24,8 @@ def multi_apply(func, *args, **kwargs):
     return tuple(map(list, zip(*map_results)))
 
 @register()
-class BBoxHead(nn.Layer):
-    """Simplest RoI head, with only two fc layers for classification and
+class BBoxHeadDetPro(nn.Layer):
+    """BBoxHeadDetPro box head, with only two fc layers for classification and
     regression respectively."""
 
     def __init__(self,
@@ -34,7 +35,7 @@ class BBoxHead(nn.Layer):
                  roi_feat_size=7,
                  in_channels=256,
                  num_classes=80,
-                 bbox_coder=BoxCoder().__dict__, # 瞎写的,没辙了，宋哥救救
+                 bbox_coder=DeltaXYWHBBoxCoder(target_means=[0., 0., 0., 0.],target_stds=[0.1, 0.1, 0.2, 0.2],clip_border=True), # 瞎写的,没辙了，宋哥救救
                  # dict(
                  #     type='DeltaXYWHBBoxCoder',
                  #     clip_border=True,# 此clip非彼clip啊
@@ -42,12 +43,12 @@ class BBoxHead(nn.Layer):
                  #     target_stds=[0.1, 0.1, 0.2, 0.2]),
                  reg_class_agnostic=False,
                  reg_decoded_bbox=False,
-                 loss_cls=nn.CrossEntropyLoss(),# 瞎写的,没辙了，宋哥救救
+                 loss_cls=nn.CrossEntropyLoss(weight=1.0),# 瞎写的,没辙了，宋哥救救
                  # dict(
                  #     type='CrossEntropyLoss',
                  #     use_sigmoid=False,
                  #     loss_weight=1.0),
-                 loss_bbox=SmoothL1Loss().__dict__,# 瞎写的,没辙了，宋哥救救
+                 loss_bbox=SmoothL1Loss(beta=1.0,loss_weight=1.0),# 瞎写的,没辙了，宋哥救救
                    # dict(
                    #   type='SmoothL1Loss', beta=1.0, loss_weight=1.0)
     ):
@@ -56,7 +57,7 @@ class BBoxHead(nn.Layer):
         self.with_avg_pool = with_avg_pool
         # self.with_cls = build_loss(with_cls) 
         # self.with_reg = build_loss(with_reg)
-        self.roi_feat_size = _pair(roi_feat_size)
+        self.roi_feat_size = (roi_feat_size,roi_feat_size)
         self.roi_feat_area = self.roi_feat_size[0] * self.roi_feat_size[1]
         self.in_channels = in_channels
         self.num_classes = num_classes
@@ -64,7 +65,7 @@ class BBoxHead(nn.Layer):
         self.reg_decoded_bbox = reg_decoded_bbox
         self.fp16_enabled = False
 
-        self.bbox_coder = build_bbox_coder(bbox_coder)
+        self.bbox_coder = bbox_coder
         self.loss_cls = loss_cls
         self.loss_bbox =loss_bbox
 
@@ -140,9 +141,9 @@ class BBoxHead(nn.Layer):
         # original implementation uses new_zeros since BG are set to be 0
         # now use empty & fill because BG cat_id = num_classes,
         # FG cat_id = [0, num_classes-1]
-        labels = pos_bboxes.new_full((num_samples, ),
-                                     self.num_classes,
-                                     dtype='int64')
+        labels = new_full((num_samples, ),
+                            self.num_classes,pos_bboxes,dtype=paddle.int64
+                                     )
         label_weights = new_zeros(num_samples, pos_bboxes)
         # label_weights = pos_bboxes.new_zeros(num_samples)
         bbox_targets = new_zeros((num_samples, 4), pos_bboxes)
