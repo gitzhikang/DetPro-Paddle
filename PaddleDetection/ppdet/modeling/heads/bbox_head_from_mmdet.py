@@ -140,9 +140,13 @@ class BBoxHead(nn.Layer):
         # original implementation uses new_zeros since BG are set to be 0
         # now use empty & fill because BG cat_id = num_classes,
         # FG cat_id = [0, num_classes-1]
-        labels = pos_bboxes.new_full((num_samples, ),
-                                     self.num_classes,
-                                     dtype='int64')
+
+        #--------------下面不太确定，不太懂paddle指定设备的操作-------------
+        # labels = pos_bboxes.new_full((num_samples, ),
+        #                              self.num_classes,
+        #                              dtype='int64')
+        labels = paddle.full((num_samples, ), self.num_classes, dtype='int64')
+
         label_weights = new_zeros(num_samples, pos_bboxes)
         # label_weights = pos_bboxes.new_zeros(num_samples)
         bbox_targets = new_zeros((num_samples, 4), pos_bboxes)
@@ -215,7 +219,8 @@ class BBoxHead(nn.Layer):
             # 0~self.num_classes-1 are FG, self.num_classes is BG
             pos_inds = (labels >= 0) & (labels < bg_class_ind)
             # do not perform bounding box regression for BG anymore.
-            if pos_inds.any():
+            # if pos_inds.any():
+            if paddle.any(pos_inds):
                 if self.reg_decoded_bbox:
                     bbox_pred = self.bbox_coder.decode(rois[:, 1:], bbox_pred)
                 if self.reg_class_agnostic:
@@ -257,8 +262,10 @@ class BBoxHead(nn.Layer):
         else:
             bboxes = paddle.clone(rois[:, 1:])
             if img_shape is not None:
-                bboxes[:, [0, 2]].clamp_(min=0, max=img_shape[1])
-                bboxes[:, [1, 3]].clamp_(min=0, max=img_shape[0])
+                paddle.clip(bboxes[:, [0, 2]], min=0, max=img_shape[1])
+                paddle.clip(bboxes[:, [1, 3]], min=0, max=img_shape[0])
+                # bboxes[:, [0, 2]].clamp_(min=0, max=img_shape[1])
+                # bboxes[:, [1, 3]].clamp_(min=0, max=img_shape[0])
 
         if rescale and get_shape(bboxes, 0) > 0:
             if isinstance(scale_factor, float):
