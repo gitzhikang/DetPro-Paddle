@@ -19,6 +19,13 @@ def repeat(input,repeatList):
     res=paddle.to_tensor(res)
     return res
 
+def test(a):
+    return a
+
+def main(self,**kwargs):
+    a=1
+    test(a, **kwargs)
+
 if __name__ == '__main__':
     # src = torch.arange(1, 11).reshape((2, 5))
     #
@@ -26,15 +33,13 @@ if __name__ == '__main__':
     # np.zeros(shape=[2,3],dtype="float32")
     # a = torch.range(1, 6).resize(2,3)
     # b=paddle.
-
-    repeat([])
+    main(123)
     # c=torch.ones(4,5)
     # a[:, [0, 2]] = c[:, [0, 2]]
     # print(a)
     # print(b)
     # print(c)
     # print(c.shape)
-    x=7
-    print((x,x)[0])
+
     # print(repeat(a,torch.tensor([2,2])))
 

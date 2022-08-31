@@ -17,6 +17,7 @@ from functools import partial
 from six.moves import map, zip
 from .file.roiheads.utils import new_zeros, new_ones, new_tensor, view, type, get_shape, new_full
 from .file.roiheads.DeltaXYWHBBoxCoder import DeltaXYWHBBoxCoder
+from .file.roiheads.loss import CrossEntropyLoss
 
 def multi_apply(func, *args, **kwargs):
     pfunc = partial(func, **kwargs) if kwargs else func
@@ -43,7 +44,7 @@ class BBoxHeadDetPro(nn.Layer):
                  #     target_stds=[0.1, 0.1, 0.2, 0.2]),
                  reg_class_agnostic=False,
                  reg_decoded_bbox=False,
-                 loss_cls=nn.CrossEntropyLoss(weight=1.0),# 瞎写的,没辙了，宋哥救救
+                 loss_cls=CrossEntropyLoss(loss_weight=1.0,use_sigmoid=False),# 瞎写的,没辙了，宋哥救救
                  # dict(
                  #     type='CrossEntropyLoss',
                  #     use_sigmoid=False,
@@ -52,7 +53,7 @@ class BBoxHeadDetPro(nn.Layer):
                    # dict(
                    #   type='SmoothL1Loss', beta=1.0, loss_weight=1.0)
     ):
-        super(BBoxHead, self).__init__()
+
         assert with_cls or with_reg
         self.with_avg_pool = with_avg_pool
         # self.with_cls = build_loss(with_cls) 
@@ -245,8 +246,11 @@ class BBoxHeadDetPro(nn.Layer):
                    bbox_pred,
                    img_shape,
                    scale_factor,
+                   nms_score_thr=None,
+                   nms_thr=None,
+                   nms_topk=None,
                    rescale=False,
-                   cfg=None):
+                   ):
         # if isinstance(cls_score, list):
         #     cls_score = sum(cls_score) / float(len(cls_score))
         # scores = F.softmax(cls_score, dim=1) if cls_score is not None else None
@@ -271,12 +275,12 @@ class BBoxHeadDetPro(nn.Layer):
                 bboxes = view((view(bboxes, (get_shape(bboxes,0), -1, 4)) /
                                scale_factor), (get_shape(bboxes, 0), -1))
 
-        if cfg is None:
+        if nms_score_thr is None or nms_thr is None or nms_topk is None:
             return bboxes, scores
         else:
             det_bboxes, det_labels = multiclass_nms(bboxes, scores,
-                                                    cfg.score_thr, cfg.nms,
-                                                    cfg.max_per_img)
+                                                    nms_score_thr, nms_thr,
+                                                    nms_topk)
 
             return det_bboxes, det_labels
 
