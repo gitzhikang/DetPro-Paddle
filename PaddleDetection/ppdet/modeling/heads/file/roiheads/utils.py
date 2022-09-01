@@ -24,7 +24,9 @@ def new_full(shape,data,src,dtype=None):
     else:
         return paddle.to_tensor(np.full(shape=shape, fill_value=data), dtype=dtype, place=src.place)
 
-def arange(start,end,dtype,place):
+def arange(start,end=None,dtype=None,place=None):
+    if dtype == None:
+        dtype = paddle.int32
     return paddle.to_tensor(np.arange(start,end),dtype=dtype,place=place)
 
 def view(data, shape):

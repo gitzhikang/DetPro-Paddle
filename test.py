@@ -27,13 +27,10 @@ def main(self,**kwargs):
     test(a, **kwargs)
 
 if __name__ == '__main__':
-    # src = torch.arange(1, 11).reshape((2, 5))
-    #
-    # index = torch.tensor([[0, 1, 2], [0, 1, 4]])
-    # np.zeros(shape=[2,3],dtype="float32")
-    # a = torch.range(1, 6).resize(2,3)
-    # b=paddle.
-    main(123)
+    x1=torch.range(1,200).resize(10,20)
+    y1 = x1[[1,2,3], [2,3,4]][:, None]
+    print(y1)
+    torch.s
     # c=torch.ones(4,5)
     # a[:, [0, 2]] = c[:, [0, 2]]
     # print(a)

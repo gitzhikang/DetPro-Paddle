@@ -853,15 +853,14 @@ class StandardRoiHead(nn.Layer):
         mask_results.update(loss_mask=loss_mask, mask_targets=mask_targets)
         return mask_results
 
-    def _mask_forward(self, x, rois=None, pos_inds=None, bbox_feats=None):
+    def _mask_forward(self, x, rois=None, rois_num=None ,pos_inds=None, bbox_feats=None):
         """Mask head forward function used in both training and testing."""
         assert ((rois is not None) ^
                 (pos_inds is not None and bbox_feats is not None))
         if rois is not None:
             mask_feats = self.mask_roi_extractor(
-                x[:self.mask_roi_extractor.num_inputs], rois)
-            if self.with_shared_head:
-                mask_feats = self.shared_head(mask_feats)
+                x, rois,rois_num)
+
         else:
             assert bbox_feats is not None
             mask_feats = bbox_feats[pos_inds]

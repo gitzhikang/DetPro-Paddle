@@ -36,7 +36,7 @@ class BBoxHeadDetPro(nn.Layer):
                  roi_feat_size=7,
                  in_channels=256,
                  num_classes=80,
-                 bbox_coder=DeltaXYWHBBoxCoder(target_means=[0., 0., 0., 0.],target_stds=[0.1, 0.1, 0.2, 0.2],clip_border=True), # 瞎写的,没辙了，宋哥救救
+                 bbox_coder=DeltaXYWHBBoxCoder(target_means=[0., 0., 0., 0.],target_stds=[0.1, 0.1, 0.2, 0.2],clip_border=True),
                  # dict(
                  #     type='DeltaXYWHBBoxCoder',
                  #     clip_border=True,# 此clip非彼clip啊
@@ -44,16 +44,16 @@ class BBoxHeadDetPro(nn.Layer):
                  #     target_stds=[0.1, 0.1, 0.2, 0.2]),
                  reg_class_agnostic=False,
                  reg_decoded_bbox=False,
-                 loss_cls=CrossEntropyLoss(loss_weight=1.0,use_sigmoid=False),# 瞎写的,没辙了，宋哥救救
+                 loss_cls=CrossEntropyLoss(loss_weight=1.0,use_sigmoid=False),
                  # dict(
                  #     type='CrossEntropyLoss',
                  #     use_sigmoid=False,
                  #     loss_weight=1.0),
-                 loss_bbox=SmoothL1Loss(beta=1.0,loss_weight=1.0),# 瞎写的,没辙了，宋哥救救
+                 loss_bbox=SmoothL1Loss(beta=1.0,loss_weight=1.0),
                    # dict(
                    #   type='SmoothL1Loss', beta=1.0, loss_weight=1.0)
     ):
-
+        super(BBoxHeadDetPro, self).__init__()
         assert with_cls or with_reg
         self.with_avg_pool = with_avg_pool
         # self.with_cls = build_loss(with_cls) 
