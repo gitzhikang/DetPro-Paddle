@@ -114,7 +114,7 @@ class PadBatch(BaseOperator):
                 polys = data['gt_rbox2poly']
                 rbox = bbox_utils.poly2rbox(polys)
                 data['gt_rbox'] = rbox
-
+            data['pad_shape'] = (im_c, max_shape[1], max_shape[2])
         return samples
 
 

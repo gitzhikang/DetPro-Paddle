@@ -37,7 +37,7 @@ logger = setup_logger(__name__)
 
 @register
 @serializable
-class COCODataSet(DetDataset):
+class LvisDataSet(DetDataset):
     """
     Load dataset with COCO format.
 
