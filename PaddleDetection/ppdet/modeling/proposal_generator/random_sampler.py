@@ -1,11 +1,37 @@
 import paddle
 
 from .base_sampler import BaseSampler
-
+import numpy as np
 from ppdet.core.workspace import register
 
+
+
+def ensure_rng(rng=None):
+    """Simple version of the ``kwarray.ensure_rng``
+
+    Args:
+        rng (int | numpy.random.RandomState | None):
+            if None, then defaults to the global rng. Otherwise this can be an
+            integer or a RandomState class
+    Returns:
+        (numpy.random.RandomState) : rng -
+            a numpy random number generator
+
+    References:
+        https://gitlab.kitware.com/computer-vision/kwarray/blob/master/kwarray/util_random.py#L270
+    """
+
+    if rng is None:
+        rng = np.random.mtrand._rand
+    elif isinstance(rng, int):
+        rng = np.random.RandomState(rng)
+    else:
+        rng = rng
+    return rng
+
+
 @register
-class RandomSampler(BaseSampler):
+class RandomSamplerDetPro(BaseSampler):
     """Random sampler.
 
     Args:
@@ -26,7 +52,7 @@ class RandomSampler(BaseSampler):
         from mmdet.core.bbox import demodata
         super(RandomSampler, self).__init__(num, pos_fraction, neg_pos_ub,
                                             add_gt_as_proposals)
-        self.rng = demodata.ensure_rng(kwargs.get('rng', None))
+        self.rng = ensure_rng(kwargs.get('rng', None))
 
     def random_choice(self, gallery, num):
         """Random select some elements from the gallery.
@@ -46,14 +72,12 @@ class RandomSampler(BaseSampler):
         value_float = paddle.to_tensor([1], dtype="float64") # 對isinstance的修改
         is_tensor = isinstance(gallery, type(value_float))
         if not is_tensor:
-            if paddle.is_compiled_with_cuda():
-                device = 'gpu'
-                # device = torch.cuda.current_device()  ? paddle能搞到索引嗎？
+            if paddle.device.get_device()[:3] == 'gpu':
+                device = paddle.device.get_device()
             else:
                 device = 'cpu'
-            gallery = paddle.to_tensor(gallery, dtype="float64", place=device)
-        perm = paddle.randperm(gallery.numel())[:num]
-        perm = paddle.to_tensor(perm, place=gallery.device)  # 雖然移動了設備，但是多創建了一個張量，不知道有沒有關係啊
+            gallery = paddle.to_tensor(gallery, dtype=paddle.int64, place=device)
+        perm = paddle.to_tensor(paddle.randperm(gallery.numel())[:num].numpy(),place=gallery.device)
         rand_inds = gallery[perm]
         if not is_tensor:
             rand_inds = rand_inds.cpu().numpy()

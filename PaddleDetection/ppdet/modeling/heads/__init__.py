@@ -35,6 +35,7 @@ from . import retina_head
 from . import ppyoloe_head
 from . import standard_roi_head
 from . import bbox_head_from_mmdet
+from . import file
 
 from .bbox_head import *
 from .mask_head import *
@@ -59,3 +60,4 @@ from .retina_head import *
 from .ppyoloe_head import *
 from .standard_roi_head import *
 from .bbox_head_from_mmdet import *
+from .file import *

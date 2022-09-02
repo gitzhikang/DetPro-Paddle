@@ -15,8 +15,11 @@ def new_tensor(data,src,place=None):
 def new_ones(shape,src):
     return paddle.to_tensor(np.ones(shape=shape),dtype=src.dtype,place=src.place)
 
-def new_zeros(shape,src):
-    return paddle.to_tensor(np.zeros(shape=shape),dtype=src.dtype,place=src.place)
+def new_zeros(shape,src,dtype=None):
+    if dtype == None:
+        return paddle.to_tensor(np.zeros(shape=shape),dtype=src.dtype,place=src.place)
+    else:
+        return paddle.to_tensor(np.zeros(shape=shape),dtype=dtype,place=src.place)
 
 def new_full(shape,data,src,dtype=None):
     if dtype == None:
@@ -25,9 +28,13 @@ def new_full(shape,data,src,dtype=None):
         return paddle.to_tensor(np.full(shape=shape, fill_value=data), dtype=dtype, place=src.place)
 
 def arange(start,end=None,dtype=None,place=None):
+    # if dtype == None:
+    #     dtype = paddle.int32
+    # return paddle.to_tensor(np.arange(start,end),dtype=dtype,place=place)
     if dtype == None:
-        dtype = paddle.int32
-    return paddle.to_tensor(np.arange(start,end),dtype=dtype,place=place)
+        return paddle.to_tensor(np.arange(start,end),dtype=paddle.int32,place=place)
+    else:
+        return paddle.to_tensor(np.arange(start, end), dtype=dtype, place=place)
 
 def view(data, shape):
     return paddle.reshape(x=data, shape=shape)

@@ -1,9 +1,133 @@
 import paddle
+import warnings
+import numpy as np
+def ensure_rng(rng=None):
+    """Simple version of the ``kwarray.ensure_rng``
 
-from mmdet.utils import util_mixins
+    Args:
+        rng (int | numpy.random.RandomState | None):
+            if None, then defaults to the global rng. Otherwise this can be an
+            integer or a RandomState class
+    Returns:
+        (numpy.random.RandomState) : rng -
+            a numpy random number generator
+
+    References:
+        https://gitlab.kitware.com/computer-vision/kwarray/blob/master/kwarray/util_random.py#L270
+    """
+
+    if rng is None:
+        rng = np.random.mtrand._rand
+    elif isinstance(rng, int):
+        rng = np.random.RandomState(rng)
+    else:
+        rng = rng
+    return rng
+
+def random_boxes(num=1, scale=1, rng=None):
+    """Simple version of ``kwimage.Boxes.random``
+
+    Returns:
+        Tensor: shape (n, 4) in x1, y1, x2, y2 format.
+
+    References:
+        https://gitlab.kitware.com/computer-vision/kwimage/blob/master/kwimage/structs/boxes.py#L1390
+
+    Example:
+        >>> num = 3
+        >>> scale = 512
+        >>> rng = 0
+        >>> boxes = random_boxes(num, scale, rng)
+        >>> print(boxes)
+        tensor([[280.9925, 278.9802, 308.6148, 366.1769],
+                [216.9113, 330.6978, 224.0446, 456.5878],
+                [405.3632, 196.3221, 493.3953, 270.7942]])
+    """
+    rng = ensure_rng(rng)
+
+    tlbr = rng.rand(num, 4).astype(np.float32)
+
+    tl_x = np.minimum(tlbr[:, 0], tlbr[:, 2])
+    tl_y = np.minimum(tlbr[:, 1], tlbr[:, 3])
+    br_x = np.maximum(tlbr[:, 0], tlbr[:, 2])
+    br_y = np.maximum(tlbr[:, 1], tlbr[:, 3])
+
+    tlbr[:, 0] = tl_x * scale
+    tlbr[:, 1] = tl_y * scale
+    tlbr[:, 2] = br_x * scale
+    tlbr[:, 3] = br_y * scale
+
+    # boxes = torch.from_numpy(tlbr)
+    boxes = paddle.to_tensor(tlbr)
+    return boxes
+
+class NiceRepr(object):
+    """Inherit from this class and define ``__nice__`` to "nicely" print your
+    objects.
+
+    Defines ``__str__`` and ``__repr__`` in terms of ``__nice__`` function
+    Classes that inherit from :class:`NiceRepr` should redefine ``__nice__``.
+    If the inheriting class has a ``__len__``, method then the default
+    ``__nice__`` method will return its length.
+
+    Example:
+        >>> class Foo(NiceRepr):
+        ...    def __nice__(self):
+        ...        return 'info'
+        >>> foo = Foo()
+        >>> assert str(foo) == '<Foo(info)>'
+        >>> assert repr(foo).startswith('<Foo(info) at ')
+
+    Example:
+        >>> class Bar(NiceRepr):
+        ...    pass
+        >>> bar = Bar()
+        >>> import pytest
+        >>> with pytest.warns(None) as record:
+        >>>     assert 'object at' in str(bar)
+        >>>     assert 'object at' in repr(bar)
+
+    Example:
+        >>> class Baz(NiceRepr):
+        ...    def __len__(self):
+        ...        return 5
+        >>> baz = Baz()
+        >>> assert str(baz) == '<Baz(5)>'
+    """
+
+    def __nice__(self):
+        """str: a "nice" summary string describing this module"""
+        if hasattr(self, '__len__'):
+            # It is a common pattern for objects to use __len__ in __nice__
+            # As a convenience we define a default __nice__ for these objects
+            return str(len(self))
+        else:
+            # In all other cases force the subclass to overload __nice__
+            raise NotImplementedError(
+                f'Define the __nice__ method for {self.__class__!r}')
+
+    def __repr__(self):
+        """str: the string of the module"""
+        try:
+            nice = self.__nice__()
+            classname = self.__class__.__name__
+            return f'<{classname}({nice}) at {hex(id(self))}>'
+        except NotImplementedError as ex:
+            warnings.warn(str(ex), category=RuntimeWarning)
+            return object.__repr__(self)
+
+    def __str__(self):
+        """str: the string of the module"""
+        try:
+            classname = self.__class__.__name__
+            nice = self.__nice__()
+            return f'<{classname}({nice})>'
+        except NotImplementedError as ex:
+            warnings.warn(str(ex), category=RuntimeWarning)
+            return object.__repr__(self)
 
 
-class SamplingResult(util_mixins.NiceRepr):
+class SamplingResult(NiceRepr):
     """Bbox sampling result.
 
     Example:
@@ -36,12 +160,18 @@ class SamplingResult(util_mixins.NiceRepr):
         if gt_bboxes.numel() == 0:
             # hack for index error case
             assert self.pos_assigned_gt_inds.numel() == 0
-            self.pos_gt_bboxes = paddle.empty_like(gt_bboxes).view(-1, 4)
+            self.pos_gt_bboxes = paddle.empty_like(gt_bboxes).reshape([-1, 4])
         else:
             if len(gt_bboxes.shape) < 2:
-                gt_bboxes = gt_bboxes.view(-1, 4)
+                gt_bboxes = gt_bboxes.reshape([-1, 4])
 
-            self.pos_gt_bboxes = gt_bboxes[self.pos_assigned_gt_inds, :]
+            # self.pos_gt_bboxes = gt_bboxes[self.pos_assigned_gt_inds, :]
+            for i in range(len(self.pos_assigned_gt_inds)):
+                if i == 0:
+                    self.pos_gt_bboxes = gt_bboxes[self.pos_assigned_gt_inds[i], :].reshape([1, -1])
+                else:
+                    self.pos_gt_bboxes = paddle.concat(
+                        [gt_bboxes[self.pos_assigned_gt_inds[i], :].reshape([1, -1]), self.pos_gt_bboxes], axis=0)
 
         if assign_result.labels is not None:
             self.pos_gt_labels = assign_result.labels[pos_inds]
@@ -63,10 +193,10 @@ class SamplingResult(util_mixins.NiceRepr):
             >>> print(f'self = {self.to(0)}')
         """
         _dict = self.__dict__
-        value_float = paddle.to_tensor([1], dtype="float64")  # 俺寫的hh
         for key, value in _dict.items():
-            if isinstance(value, type(value_float)):
-                _dict[key] = value.to(device)
+            if isinstance(value, paddle.Tensor):
+                # _dict[key] = value.to(device)
+                _dict[key] = paddle.to_tensor(value.numpy(),place=device)
 
         return self
 
@@ -113,10 +243,9 @@ class SamplingResult(util_mixins.NiceRepr):
             >>> self = SamplingResult.random()
             >>> print(self.__dict__)
         """
-        from mmdet.core.bbox.samplers.random_sampler import RandomSampler
-        from mmdet.core.bbox.assigners.assign_result import AssignResult
-        from mmdet.core.bbox import demodata
-        rng = demodata.ensure_rng(rng)
+        from .random_sampler import RandomSampler
+        from PaddleDetection.ppdet.modeling.assigners.assign_result import AssignResult
+        rng = ensure_rng(rng)
 
         # make probabalistic?
         num = 32
@@ -126,8 +255,8 @@ class SamplingResult(util_mixins.NiceRepr):
         assign_result = AssignResult.random(rng=rng, **kwargs)
 
         # Note we could just compute an assignment
-        bboxes = demodata.random_boxes(assign_result.num_preds, rng=rng)
-        gt_bboxes = demodata.random_boxes(assign_result.num_gts, rng=rng)
+        bboxes = random_boxes(assign_result.num_preds, rng=rng)
+        gt_bboxes = random_boxes(assign_result.num_gts, rng=rng)
 
         if rng.rand() > 0.2:
             # sometimes algorithms squeeze their data, be robust to that

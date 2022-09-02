@@ -3,6 +3,7 @@ from abc import ABCMeta, abstractmethod
 import paddle
 
 from .sampling_result import SamplingResult
+from ..heads.file.roiheads.utils import new_zeros
 
 
 class BaseSampler(metaclass=ABCMeta):
@@ -69,7 +70,8 @@ class BaseSampler(metaclass=ABCMeta):
 
         bboxes = bboxes[:, :4]
 
-        gt_flags = bboxes.new_zeros((bboxes.shape[0], ), dtype='unit8')
+        # gt_flags = bboxes.new_zeros((bboxes.shape[0], ), dtype='unit8')
+        gt_flags = new_zeros(shape=(bboxes.shape[0], ),src=bboxes,dtype=paddle.uint8)
         if self.add_gt_as_proposals and len(gt_bboxes) > 0:
             if gt_labels is None:
                 raise ValueError(

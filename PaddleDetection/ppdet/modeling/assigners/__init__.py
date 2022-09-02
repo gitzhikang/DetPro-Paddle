@@ -17,9 +17,20 @@ from . import task_aligned_assigner
 from . import atss_assigner
 from . import simota_assigner
 from . import max_iou_assigner
+from . import assign_result
+from . import BaseAssigner
+from . import iouCalculator
+from . import MaxIouAssignerDetPro
+
+
 
 from .utils import *
 from .task_aligned_assigner import *
 from .atss_assigner import *
 from .simota_assigner import *
 from .max_iou_assigner import *
+from .assign_result import *
+from .BaseAssigner import *
+from iouCalculator import *
+from .MaxIouAssignerDetPro import *
+

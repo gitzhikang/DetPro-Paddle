@@ -102,7 +102,8 @@ class StandardRoiHead(nn.Layer):
                  test_nms_max_per_img=300,
                  test_nms_iou_threshold=0.5,
 
-                 bbox_assigner='BboxAssigner',
+                 bbox_assigner='MaxIoUAssignerDetPro',
+                 bbox_sampler = 'RandomSamplerDetPro',
                  with_pool=False,
                  num_classes=80,
                  bbox_weight=[10., 10., 5., 5.],
@@ -146,7 +147,8 @@ class StandardRoiHead(nn.Layer):
         self.test_nms_score_thr=test_nms_score_thr
         self.test_nms_max_per_img=test_nms_max_per_img
         self.test_nms_iou_threshold=test_nms_iou_threshold
-
+        self.bbox_assigner = bbox_assigner
+        self.bbox_sampler = bbox_sampler
         self.load_feature = load_feature
         self.use_clip_inference = use_clip_inference
         self.kd_weight = kd_weight

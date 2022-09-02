@@ -28,9 +28,15 @@ def main(self,**kwargs):
 
 if __name__ == '__main__':
     x1=torch.range(1,200).resize(10,20)
-    y1 = x1[[1,2,3], [2,3,4]][:, None]
-    print(y1)
-    torch.s
+    x2=torch.rand([10,3])
+    index = torch.tensor([True,False,True])
+    print(x2[:,index])
+    # rows = x1.size(-2)
+    # print(x1.shape[1])
+    # print(x1.size())
+    # print(x1.new(x1.shape+(1,)))
+    # print(x1.shape+(1,))
+    # print([2,3]+[3,4])
     # c=torch.ones(4,5)
     # a[:, [0, 2]] = c[:, [0, 2]]
     # print(a)
