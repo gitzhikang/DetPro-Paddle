@@ -716,6 +716,7 @@ class RandomFlip(BaseOperator):
             sample['image'] = im
             #添加
             sample['flip_direction'] = 'horizontal'
+        sample['flipped'] = False
 
         return sample
 

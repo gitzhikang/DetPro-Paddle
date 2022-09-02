@@ -24,7 +24,7 @@ def multi_apply(func, *args, **kwargs):
     map_results = map(pfunc, *args)
     return tuple(map(list, zip(*map_results)))
 
-@register()
+@register
 class BBoxHeadDetPro(nn.Layer):
     """BBoxHeadDetPro box head, with only two fc layers for classification and
     regression respectively."""
@@ -132,7 +132,7 @@ class BBoxHeadDetPro(nn.Layer):
         return cls_score, bbox_pred
 
     def _get_target_single(self, pos_bboxes, neg_bboxes, pos_gt_bboxes,
-                           pos_gt_labels, cfg):
+                           pos_gt_labels, train_cfg_pos_weight):
         # num_pos = pos_bboxes.size(0)
         num_pos = get_shape(pos_bboxes, 0)
         # num_neg = neg_bboxes.size(0)
@@ -153,7 +153,7 @@ class BBoxHeadDetPro(nn.Layer):
         # bbox_weights = pos_bboxes.new_zeros(num_samples, 4)
         if num_pos > 0:
             labels[:num_pos] = pos_gt_labels
-            pos_weight = 1.0 if cfg.pos_weight <= 0 else cfg.pos_weight
+            pos_weight = 1.0 if train_cfg_pos_weight <= 0 else train_cfg_pos_weight
             label_weights[:num_pos] = pos_weight
             if not self.reg_decoded_bbox:
                 pos_bbox_targets = self.bbox_coder.encode(
@@ -171,7 +171,7 @@ class BBoxHeadDetPro(nn.Layer):
                     sampling_results,
                     gt_bboxes,
                     gt_labels,
-                    rcnn_train_cfg,
+                    rcnn_train_cfg_pos_weight,
                     concat=True):
         pos_bboxes_list = [res.pos_bboxes for res in sampling_results]
         neg_bboxes_list = [res.neg_bboxes for res in sampling_results]
@@ -183,7 +183,7 @@ class BBoxHeadDetPro(nn.Layer):
             neg_bboxes_list,
             pos_gt_bboxes_list,
             pos_gt_labels_list,
-            cfg=rcnn_train_cfg)
+            cfg=rcnn_train_cfg_pos_weight)
 
         if concat:
             labels = paddle.concat(x=labels, axis=0)

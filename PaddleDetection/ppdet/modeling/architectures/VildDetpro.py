@@ -47,17 +47,15 @@ class VildDetpro(BaseArch):
     def __init__(self,
                  backbone,
                  rpn_head,
-                 roihead,
                  bbox_post_process,
                  mask_post_process,
+                 roi_head,
                  neck=None):
         super(MaskRCNN, self).__init__()
         self.backbone = backbone
         self.neck = neck
         self.rpn_head = rpn_head
-        self.bbox_head = bbox_head
-        self.mask_head = mask_head
-
+        self.roi_head = roi_head
         self.bbox_post_process = bbox_post_process
         self.mask_post_process = mask_post_process
 
@@ -70,34 +68,49 @@ class VildDetpro(BaseArch):
         out_shape = neck and neck.out_shape or backbone.out_shape
         kwargs = {'input_shape': out_shape}
         rpn_head = create(cfg['rpn_head'], **kwargs)
-        bbox_head = create(cfg['bbox_head'], **kwargs)
+        # bbox_head = create(cfg['bbox_head'], **kwargs)
+        roi_head = create(cfg['roi_head'],**kwargs)
 
-        out_shape = neck and out_shape or bbox_head.get_head().out_shape
-        kwargs = {'input_shape': out_shape}
-        mask_head = create(cfg['mask_head'], **kwargs)
         return {
             'backbone': backbone,
             'neck': neck,
             "rpn_head": rpn_head,
-            "bbox_head": bbox_head,
-            "mask_head": mask_head,
+            "roi_head":roi_head
         }
 
     def _forward(self):
+        img_metas = {
+            'filename': self.inputs['im_file'],
+            'ori_filename': self.inputs['ori_filename'],
+            'ori_shape': (self.inputs['h'], self.inputs['w'], 3),
+            'img_shape': (self.inputs['image'].shape[2],self.inputs['image'].shape[3],3),
+            'pad_shape': self.inputs['pad_shape'],
+            'scale_factor': self.inputs['scale_factor'],
+            'flip': self.inputs['flipped'],
+            'flip_direction': self.inputs['flip_direction'],
+            'img_norm_cfg': self.inputs['img_norm_cfg']
+        }
+
         body_feats = self.backbone(self.inputs)
         if self.neck is not None:
             body_feats = self.neck(body_feats)
 
+
         if self.training:
             rois, rois_num, rpn_loss = self.rpn_head(body_feats, self.inputs)
-            bbox_loss, bbox_feat = self.bbox_head(body_feats, rois, rois_num,
-                                                  self.inputs)
-            rois, rois_num = self.bbox_head.get_assigned_rois()
-            bbox_targets = self.bbox_head.get_assigned_targets()
-            # Mask Head needs bbox_feat in Mask RCNN
-            mask_loss = self.mask_head(body_feats, rois, rois_num, self.inputs,
-                                       bbox_targets, bbox_feat)
-            return rpn_loss, bbox_loss, mask_loss
+
+            # bbox_loss, bbox_feat = self.bbox_head(body_feats, rois, rois_num,
+            #                                       self.inputs)
+            # rois, rois_num = self.bbox_head.get_assigned_rois()
+            # bbox_targets = self.bbox_head.get_assigned_targets()
+            # # Mask Head needs bbox_feat in Mask RCNN
+            # mask_loss = self.mask_head(body_feats, rois, rois_num, self.inputs,
+            #                            bbox_targets, bbox_feat)
+
+            losses = self.roi_head.forward_train(body_feats,self.inputs['image'],self.inputs['img_no_normalize'],img_metas,rois,self.inputs['pre_computed_proposal'],
+                                        self.inputs['gt_bbox'],self.inputs['gt_class'],self.inputs['bboxes_ignore'],self.inputs['gt_poly']
+                                        )
+            return rpn_loss, losses
         else:
             rois, rois_num, _ = self.rpn_head(body_feats, self.inputs)
             preds, feat_func = self.bbox_head(body_feats, rois, rois_num, None)
@@ -126,11 +139,10 @@ class VildDetpro(BaseArch):
 
 
     def get_loss(self, ):
-        bbox_loss, mask_loss, rpn_loss = self._forward()
+        rpn_loss, losses = self._forward()
         loss = {}
         loss.update(rpn_loss)
-        loss.update(bbox_loss)
-        loss.update(mask_loss)
+        loss.update(losses)
         total_loss = paddle.add_n(list(loss.values()))
         loss.update({'loss': total_loss})
         return loss

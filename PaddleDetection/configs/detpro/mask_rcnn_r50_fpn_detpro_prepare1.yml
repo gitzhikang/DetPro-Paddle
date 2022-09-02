@@ -1,12 +1,13 @@
-architecture: MaskRCNN
+architecture: VildDetpro
 pretrain_weights: https://paddledet.bj.bcebos.com/models/pretrained/ResNet50_cos_pretrained.pdparams
 
 MaskRCNN:
   backbone: ResNet
   neck: FPN
   rpn_head: RPNHead
-  bbox_head: BBoxHead
-  mask_head: MaskHead
+#  bbox_head: BBoxHead
+#  mask_head: MaskHead
+  roi_head: StandardRoiHead
   # post process
   bbox_post_process: BBoxPostProcess
   mask_post_process: MaskPostProcess
@@ -14,13 +15,14 @@ MaskRCNN:
 ResNet:
   # index 0 stands for res2
   depth: 50
-  norm_type: bn
+  norm_type: sync_bn
   freeze_at: 0
   return_idx: [0,1,2,3]
   num_stages: 4
 
 FPN:
   out_channel: 256
+  norm_type: sync_bn
 
 RPNHead:
   anchor_generator:
@@ -34,58 +36,70 @@ RPNHead:
     positive_overlap: 0.7
     use_random: True
   train_proposal:
-    min_size: 0.0
+    min_size: 0.001
     nms_thresh: 0.7
     pre_nms_top_n: 2000
     post_nms_top_n: 1000
     topk_after_collect: True
   test_proposal:
-    min_size: 0.0
+    min_size: 0.001
     nms_thresh: 0.7
     pre_nms_top_n: 1000
     post_nms_top_n: 1000
 
-BBoxHead:
-  head: TwoFCHead
-  roi_extractor:
+StandardRoiHead:
+  bbox_head: Shared4Conv1FCBBoxHead
+  bbox_roi_extractor:
     resolution: 7
     sampling_ratio: 0
     aligned: True
-  bbox_assigner: BBoxAssigner
-
-BBoxAssigner:
-  batch_size_per_im: 512
-  bg_thresh: 0.5
-  fg_thresh: 0.5
-  fg_fraction: 0.25
-  use_random: True
-
-TwoFCHead:
-  out_channel: 1024
-
-BBoxPostProcess:
-  decode: RCNNBox
-  nms:
-    name: MultiClassNMS
-    keep_top_k: 100
-    score_threshold: 0.05
-    nms_threshold: 0.5
-
-MaskHead:
-  head: MaskFeat
-  roi_extractor:
+  mask_head: FCNMaskHead
+  mask_roi_extractor:
     resolution: 14
     sampling_ratio: 0
     aligned: True
-  mask_assigner: MaskAssigner
-  share_bbox_feat: False
+  load_feature: False
+  bbox_assigner: MaxIoUAssignerDetPro
+  bbox_sampler: RandomSamplerDetPro
+  train_mask_size: 28
+  train_pos_weight: -1
 
-MaskFeat:
+Shared4Conv1FCBBoxHead:
+  in_channels: 256
+  fc_out_channels: 1024
+  roi_feat_size: 7
+  num_classes: 1203
+  reg_class_agnostic: True
+  ensemble: True
+  with_cls: False
+
+FCNMaskHead:
   num_convs: 4
-  out_channel: 256
+  in_channels: 256
+  conv_out_channels: 256
+  class_agnostic: True
+  num_classes: 1203
 
-MaskAssigner:
-  mask_resolution: 28
+MaxIoUAssignerDetPro:
+  pos_iou_thr: 0.5
+  neg_iou_thr: 0.5
+  min_pos_iou: 0.5
+  match_low_quality: True
+  ignore_iof_thr: -1
 
-MaskPostProcess:
-  binary_thresh: 0.5
+RandomSamplerDetPro:
+  num: 512
+  pos_fraction: 0.25
+  neg_pos_ub: -1
+  add_gt_as_proposals: True
+
+
+
+
+
+
+
+
+
+
+

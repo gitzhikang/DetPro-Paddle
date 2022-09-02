@@ -31,6 +31,10 @@ if __name__ == '__main__':
     x2=torch.rand([10,3])
     index = torch.tensor([True,False,True])
     print(x2[:,index])
+
+    a=None
+    if not a:
+        print(111)
     # rows = x1.size(-2)
     # print(x1.shape[1])
     # print(x1.size())

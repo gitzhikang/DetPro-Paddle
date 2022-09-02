@@ -88,7 +88,7 @@ class StandardRoiHead(nn.Layer):
     def __init__(self,
                  bbox_head=None,
                  bbox_roi_extractor=RoIAlign().__dict__,
-                 mask_roi_extractor=None,
+                 mask_roi_extractor=RoIAlign().__dict__,
                  mask_head=None,
                  use_clip_inference=False,
                  load_feature=True,
@@ -101,14 +101,11 @@ class StandardRoiHead(nn.Layer):
                  test_nms_score_thr=0.0001,
                  test_nms_max_per_img=300,
                  test_nms_iou_threshold=0.5,
-
+                 train_mask_size = 28,
+                 train_pos_weight = -1,
                  bbox_assigner='MaxIoUAssignerDetPro',
                  bbox_sampler = 'RandomSamplerDetPro',
-                 with_pool=False,
-                 num_classes=80,
-                 bbox_weight=[10., 10., 5., 5.],
-                 bbox_loss=None,
-                 in_channel=None):
+                 ):
         super(StandardRoiHead, self).__init__()
         device = paddle.CUDAPlace(0) if paddle.device.cuda.device_count()>0 else paddle.CPUPlace()
         self.device = device
@@ -147,6 +144,8 @@ class StandardRoiHead(nn.Layer):
         self.test_nms_score_thr=test_nms_score_thr
         self.test_nms_max_per_img=test_nms_max_per_img
         self.test_nms_iou_threshold=test_nms_iou_threshold
+        self.train_mask_size =train_mask_size
+        self.train_pos_weight = train_pos_weight
         self.bbox_assigner = bbox_assigner
         self.bbox_sampler = bbox_sampler
         self.load_feature = load_feature
@@ -223,7 +222,7 @@ class StandardRoiHead(nn.Layer):
         print('text embedding finished, {} passed'.format(time.time() - time_start))
         print(self.text_features_for_classes.shape)
         # reporter.report()
-        self.proposals = pickle.load('data/lvis_v1/proposals/rpn_r101_fpn_lvis_train.pkl','rb')
+        # self.proposals = pickle.load('data/lvis_v1/proposals/rpn_r101_fpn_lvis_train.pkl','rb')
         coco = LVIS('data/lvis_v1/annotations/lvis_v1_train.json')
         img_ids = coco.get_img_ids()
         self.file_idxs = dict()
@@ -767,7 +766,7 @@ class StandardRoiHead(nn.Layer):
             clip_image_features_ensemble = paddle.concat(clip_image_features_ensemble, axis=0)
             # clip_image_features_ensemble_align = torch.cat(clip_image_features_ensemble_align, dim=0)
         bbox_targets = self.bbox_head.get_targets(sampling_results, gt_bboxes,
-                                                  gt_labels, self.train_cfg)
+                                                  gt_labels, self.train_pos_weight)
         labels, _, _, _ = bbox_targets
 
         region_embeddings = self.projection(region_embeddings)
@@ -847,7 +846,7 @@ class StandardRoiHead(nn.Layer):
                 x, pos_inds=pos_inds, bbox_feats=bbox_feats)
 
         mask_targets = self.mask_head.get_targets(sampling_results, gt_masks,
-                                                  self.train_cfg)
+                                                  self.train_mask_size)
         pos_labels = paddle.concat([res.pos_gt_labels for res in sampling_results])
         loss_mask = self.mask_head.loss(mask_results['mask_pred'],
                                         mask_targets, pos_labels)
