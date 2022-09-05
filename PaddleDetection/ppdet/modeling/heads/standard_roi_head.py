@@ -108,7 +108,7 @@ class StandardRoiHead(nn.Layer):
                  bbox_sampler = 'RandomSamplerDetPro',
                  ):
         super(StandardRoiHead, self).__init__()
-        device = paddle.CUDAPlace(0) if paddle.device.cuda.device_count()>0 else paddle.CPUPlace()
+        device = 'gpu' if paddle.device.cuda.device_count()>0 else 'cpu'
         self.device = device
         if bbox_head.num_classes == 80:
             self.CLASSES = COCO_CLASSES
@@ -200,9 +200,9 @@ class StandardRoiHead(nn.Layer):
         if osp.exists(save_path):
             # if False:
             if not self.fix_bg:
-                self.text_features_for_classes = paddle.load(save_path).cuda().squeeze()[:self.num_classes]
+                self.text_features_for_classes = paddle.to_tensor(paddle.load(save_path),place=device).squeeze()[:self.num_classes]
             else:
-                self.text_features_for_classes = paddle.load(save_path).cuda().squeeze()
+                self.text_features_for_classes = paddle.to_tensor(paddle.load(save_path),place=device).squeeze()
                 print(self.text_features_for_classes.shape)
         else:
             self.clip_model,self.preprocess=load_clip()
@@ -213,7 +213,7 @@ class StandardRoiHead(nn.Layer):
             for template in tqdm(template_list):
                 print(template)
                 text_features_for_classes = paddle.concat(
-                    [self.clip_model.encode_text(tokenize(template.format(c)).cuda()).detach() for c in
+                    [self.clip_model.encode_text(paddle.to_tensor(tokenize(template.format(c)),place=device)).detach() for c in
                      self.CLASSES])
                 self.text_features_for_classes.append(F.normalize(text_features_for_classes, axis=-1))
 
@@ -570,7 +570,7 @@ class StandardRoiHead(nn.Layer):
                 # if flag:
                     # cropped_image.save('workdirs/output_proposals_15/' + str(cnt) + '_' + img_metas[img_id]['filename'].split('/')[-1])
                 try:
-                    cropped_image = self.preprocess(cropped_image).to(self.device)
+                    cropped_image = paddle.to_tensor(self.preprocess(cropped_image),place=self.device)
                 except:
                     print(img_metas[img_id]['flip'],flag)
                     print(box)
@@ -663,7 +663,7 @@ class StandardRoiHead(nn.Layer):
             croped = self.preprocess(croped)
             preprocessed.append(croped)
 
-        preprocessed = paddle.stack(preprocessed).cuda()
+        preprocessed = paddle.to_tensor(paddle.stack(preprocessed),place=self.device)
         features = self.clip_model.mdoel.encode_image(preprocessed)
         return features
 
@@ -720,7 +720,7 @@ class StandardRoiHead(nn.Layer):
                     f = self.zipfile.get(save_path)
                     stream = io.BytesIO(f)
                     tmp = paddle.load(stream)
-                    clip_image_features_ensemble.append(tmp.cuda())
+                    clip_image_features_ensemble.append(paddle.to_tensor(tmp,place=self.device))
                 except:
                     bboxes_single_image = bboxes_all[i]
                     bboxes15 = self.boxto15(bboxes_single_image)
@@ -1026,7 +1026,7 @@ class StandardRoiHead(nn.Layer):
                 self.checkdir(save_path)
                 # torch.save(clip_image_features_ensemble.cpu(), save_path)
             else:
-                clip_image_features_ensemble = paddle.load(save_path).cuda()
+                clip_image_features_ensemble = paddle.to_tensor(paddle.load(save_path),place=self.device)
                 # clip_image_features_ensemble_img2pil = torch.load(save_path).to(self.device)
             # cls_score_clip[:,:-1] = cls_score_clip[:,:-1]/cls_score_clip[:,:-1].std(dim=1,keepdim=True)*0.006
             # print(cls_score_clip.std(dim=1).mean())

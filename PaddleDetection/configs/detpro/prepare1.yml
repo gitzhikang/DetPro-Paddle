@@ -1,0 +1,9 @@
+_BASE_: [
+  '../datasets/lvis_instance.yml',
+  '../runtime.yml',
+  '_base_/optimizer_1x.yml',
+  '_base_/mask_rcnn_r50_fpn_detpro_prepare1.yml',
+  '_base_/mask_fpn_reader.yml',
+]
+weights: output/mask_rcnn_r50_1x_lvis/model_final
+epoch: 1
