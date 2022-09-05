@@ -278,11 +278,15 @@ class BBoxHeadDetPro(nn.Layer):
         if nms_score_thr is None or nms_thr is None or nms_topk is None:
             return bboxes, scores
         else:
-            det_bboxes, det_labels = multiclass_nms(bboxes, scores,
+            # det_bboxes, det_labels = multiclass_nms(bboxes, scores,
+            #                                         nms_score_thr, nms_thr,
+            #                                         nms_topk)
+            output, nms_bbox = multiclass_nms(bboxes, scores,
                                                     nms_score_thr, nms_thr,
                                                     nms_topk)
-
-            return det_bboxes, det_labels
+            det_bboxes = output[:, 1:6]
+            det_labels = output[:, 0]
+            return det_bboxes, det_labels,nms_bbox
 
 
     # @force_fp32(apply_to=('bbox_preds', ))

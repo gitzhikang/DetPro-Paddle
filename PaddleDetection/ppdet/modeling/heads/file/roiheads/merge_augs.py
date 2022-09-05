@@ -2,7 +2,7 @@
 import paddle
 from .transforms import bbox_mapping_back
 
-def merge_aug_bboxes(aug_bboxes, aug_scores, img_metas, rcnn_test_cfg):
+def merge_aug_bboxes(aug_bboxes, aug_scores, img_metas, rcnn_test_cfg=None):
     """Merge augmented detection bboxes and scores.
 
     Args:

@@ -6,15 +6,18 @@ TrainDataset:
     image_dir: train2017
     anno_path: annotations/lvis_v1_train.json
     dataset_dir: /root/autodl-tmp/detpro-pytorch/data/lvis_v1
+    proposal_path: root/autodl-tmp/detpro-pytorch/data/lvis_v1/proposals/rpn_r101_fpn_lvis_train.pkl
     data_fields: ['image','img_no_normalize','pre_computed_proposal','bboxes_ignore', 'gt_bbox', 'gt_class', 'gt_poly', 'is_crowd','im_file','ori_filename','h','w','pad_shape','scale_factor','flipped','flip_direction','img_norm_cfg']
 
 EvalDataset:
   !LvisDataSet
     image_dir: val2017
     anno_path: annotations/lvis_v1_val.json
+    proposal_path: root/autodl-tmp/detpro-pytorch/data/lvis_v1/proposals/rpn_r101_fpn_lvis_train.pkl
     dataset_dir: /root/autodl-tmp/detpro-pytorch/data/lvis_v1
 
 TestDataset:
   !ImageFolder
     anno_path: annotations/instances_val2017.json # also support txt (like VOC's label_list.txt)
+    proposal_path: root/autodl-tmp/detpro-pytorch/data/lvis_v1/proposals/rpn_r101_fpn_lvis_train.pkl
     dataset_dir: dataset/coco # if set, anno_path will be 'dataset_dir/anno_path'

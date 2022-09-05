@@ -8,9 +8,6 @@ MaskRCNN:
 #  bbox_head: BBoxHead
 #  mask_head: MaskHead
   roi_head: StandardRoiHead
-  # post process
-  bbox_post_process: BBoxPostProcess
-  mask_post_process: MaskPostProcess
 
 ResNet:
   # index 0 stands for res2

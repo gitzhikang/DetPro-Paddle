@@ -54,7 +54,7 @@ def load_clip():
             'transformer_layers': 12, 'qkv_bias': True, 'proj': True, 'pre_norm': True}
     head = {'name': 'CLIPHead'}
     model = CLIPWrapper(architecture=arch, head=head)
-    state_dict = paddle.load("ViT-B-32.pdparams")['state_dict']
+    state_dict = paddle.load("/root/autodl-tmp/ViT-B-32.pdparams")['state_dict']
     model.set_state_dict(state_dict)
     preprocess = Compose([Resize(224,interpolation='bicubic'),
                         CenterCrop(224),
@@ -101,6 +101,7 @@ class StandardRoiHead(nn.Layer):
                  test_nms_score_thr=0.0001,
                  test_nms_max_per_img=300,
                  test_nms_iou_threshold=0.5,
+                 test_config_mask_thr_binary =0.5,
                  train_mask_size = 28,
                  train_pos_weight = -1,
                  bbox_assigner='MaxIoUAssignerDetPro',
@@ -144,6 +145,7 @@ class StandardRoiHead(nn.Layer):
         self.test_nms_score_thr=test_nms_score_thr
         self.test_nms_max_per_img=test_nms_max_per_img
         self.test_nms_iou_threshold=test_nms_iou_threshold
+        self.test_config_mask_thr_binary = test_config_mask_thr_binary
         self.train_mask_size =train_mask_size
         self.train_pos_weight = train_pos_weight
         self.bbox_assigner = bbox_assigner
@@ -902,7 +904,6 @@ class StandardRoiHead(nn.Layer):
                            img_metas,
                            proposals,
                            proposals_pre_computed,
-                           rcnn_test_cfg,
                            rescale=False):
         """Test only det bboxes without augmentation.
 
@@ -1087,23 +1088,80 @@ class StandardRoiHead(nn.Layer):
         # apply bbox post-processing to each image individually
         det_bboxes = []
         det_labels = []
+        det_nums = []
         for i in range(len(proposals)):
-            det_bbox, det_label = self.bbox_head.get_bboxes(
+            det_bbox, det_label,nms_bbox = self.bbox_head.get_bboxes(
                 rois[i],
                 cls_score[i],
                 bbox_pred[i],
                 img_shapes[i],
                 scale_factors[i],
                 rescale=rescale,
-                cfg=rcnn_test_cfg)
+                nms_score_thr=self.test_nms_score_thr,
+                nms_topk=self.test_nms_max_per_img,
+                nms_thr=self.test_nms_iou_threshold
+            )
             det_bboxes.append(det_bbox)
             det_labels.append(det_label)
+            det_nums.append(nms_bbox)
             # if self.use_clip_inference:
             #     # proposal_label = self.novel_label_ids[cls_score[i][:,self.novel_label_ids].argmax(dim=1)]
             # for j,label in enumerate(proposal_label):
             #     box = proposals[i][j].detach().cpu().numpy().tolist()
             #     print('{} {} {} {} {} {}'.format(img_metas[0]['ori_filename'],cls_score[i].max(dim=1)[0][j],box[0],box[1],box[2],box[3]),file=open('/home/dy20/mmdetection27/workdirs/det_result/train_novel_det/{}_det_{}.txt'.format(self.rank,label),'a'))
-        return det_bboxes, det_labels
+        return det_bboxes, det_labels,det_nums
+
+    def simple_test_mask(self,
+                         x,
+                         img_metas,
+                         det_bboxes,
+                         det_labels,
+                         rescale=False):
+        """Simple test for mask head without augmentation."""
+        # image shapes of images in the batch
+        ori_shapes = tuple(meta['ori_shape'] for meta in img_metas)
+        scale_factors = tuple(meta['scale_factor'] for meta in img_metas)
+        num_imgs = len(det_bboxes)
+        if all(det_bbox.shape[0] == 0 for det_bbox in det_bboxes):
+            segm_results = [[[] for _ in range(self.mask_head.num_classes)]
+                            for _ in range(num_imgs)]
+        else:
+            # if det_bboxes is rescaled to the original image size, we need to
+            # rescale it back to the testing scale to obtain RoIs.
+            if rescale and not isinstance(scale_factors[0], float):
+                scale_factors = [
+                    # torch.from_numpy(scale_factor).to(det_bboxes[0].device)
+                    paddle.to_tensor(scale_factor,place=det_bboxes[0].place)
+                    for scale_factor in scale_factors
+                ]
+
+            _bboxes = [
+                det_bboxes[i][:, :4] *
+                scale_factors[i] if rescale else det_bboxes[i][:, :4]
+                for i in range(len(det_bboxes))
+            ]
+            mask_rois = bbox2roi(_bboxes)
+            mask_results = self._mask_forward(x, mask_rois)
+            mask_pred = mask_results['mask_pred']
+            # split batch mask prediction back to each image
+            num_mask_roi_per_img = [
+                det_bbox.shape[0] for det_bbox in det_bboxes
+            ]
+            mask_preds = mask_pred.split(num_mask_roi_per_img, 0)
+
+            # apply mask post-processing to each image individually
+            segm_results = []
+            for i in range(num_imgs):
+                if det_bboxes[i].shape[0] == 0:
+                    segm_results.append(
+                        [[] for _ in range(self.mask_head.num_classes)])
+                else:
+                    segm_result = self.mask_head.get_seg_masks(
+                        mask_preds[i], _bboxes[i], det_labels[i],
+                        self.test_config_mask_thr_binary, ori_shapes[i], scale_factors[i],
+                        rescale)
+                    segm_results.append(segm_result)
+        return segm_results
 
     def simple_test(self,
                     x,
@@ -1117,8 +1175,8 @@ class StandardRoiHead(nn.Layer):
         """Test without augmentation."""
         assert self.with_bbox, 'Bbox head must be implemented.'
 
-        det_bboxes, det_labels = self.simple_test_bboxes(
-            x,img,img_no_normalize, img_metas, proposal_list,proposals, self.test_cfg, rescale=rescale)
+        det_bboxes, det_labels,det_nums = self.simple_test_bboxes(
+            x,img,img_no_normalize, img_metas, proposal_list,proposals, rescale=rescale)
         # if torch.onnx.is_in_onnx_export():
         #     if self.with_mask:
         #         segm_results = self.simple_test_mask(
@@ -1127,18 +1185,17 @@ class StandardRoiHead(nn.Layer):
         #     else:
         #         return det_bboxes, det_labels
 
-        bbox_results = [
-            bbox2result(det_bboxes[i], det_labels[i],
-                        self.bbox_head.num_classes)
-            for i in range(len(det_bboxes))
-        ]
-
+        # bbox_results = [
+        #     bbox2result(det_bboxes[i], det_labels[i],
+        #                 self.bbox_head.num_classes)
+        #     for i in range(len(det_bboxes))
+        # ]
         if not self.with_mask:
-            return bbox_results
+            return det_bboxes,det_nums
         else:
             segm_results = self.simple_test_mask(
                 x, img_metas, det_bboxes, det_labels, rescale=rescale)
-            return list(zip(bbox_results, segm_results))
+            return det_bboxes,det_labels,segm_results,det_nums
 
     def aug_test(self, x, proposal_list, img_metas, rescale=False,**kwargs):
         """Test with augmentations.
@@ -1147,8 +1204,8 @@ class StandardRoiHead(nn.Layer):
         of imgs[0].
         """
         det_bboxes, det_labels = self.aug_test_bboxes(x, img_metas,
-                                                      proposal_list,
-                                                      self.test_cfg)
+                                                      proposal_list
+                                                      )
 
         if rescale:
             _det_bboxes = det_bboxes
@@ -1167,7 +1224,7 @@ class StandardRoiHead(nn.Layer):
         else:
             return [bbox_results]
 
-    def aug_test_bboxes(self, feats, img_metas, proposal_list, rcnn_test_cfg):
+    def aug_test_bboxes(self, feats, img_metas, proposal_list, rcnn_test_cfg=None):
         """Test det bboxes with test time augmentation."""
         aug_bboxes = []
         aug_scores = []
@@ -1210,10 +1267,10 @@ class StandardRoiHead(nn.Layer):
         merged_bboxes, merged_scores = merge_aug_bboxes(
             aug_bboxes, aug_scores, img_metas, rcnn_test_cfg)
         #------使用paddledetction里面的
-        det_results = multiclass_nms(merged_bboxes, merged_scores,
+        bbox, bbox_num= multiclass_nms(merged_bboxes, merged_scores,
                                                score_threshold=self.test_nms_score_thr,
                                                 nms_top_k=self.test_nms_max_per_img,
                                                 nms_threshold=self.test_nms_iou_threshold)
-        det_bboxes = det_results[:,1:6]
-        det_labels = det_results[:,0]
-        return det_bboxes, det_labels
+        det_bboxes = bbox[:,1:6]
+        det_labels = bbox[:,0]
+        return det_bboxes, det_labels ,bbox_num

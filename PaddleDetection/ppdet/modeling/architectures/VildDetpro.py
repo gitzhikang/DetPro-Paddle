@@ -113,23 +113,32 @@ class VildDetpro(BaseArch):
             return rpn_loss, losses
         else:
             rois, rois_num, _ = self.rpn_head(body_feats, self.inputs)
-            preds, feat_func = self.bbox_head(body_feats, rois, rois_num, None)
+            # preds, feat_func = self.bbox_head(body_feats, rois, rois_num, None)
+            #
+            # im_shape = self.inputs['im_shape']
+            # scale_factor = self.inputs['scale_factor']
+            #
+            # bbox, bbox_num = self.bbox_post_process(preds, (rois, rois_num),
+            #                                         im_shape, scale_factor)
+            # mask_out = self.mask_head(
+            #     body_feats, bbox, bbox_num, self.inputs, feat_func=feat_func)
+            #
+            # # rescale the prediction back to origin image
+            # bbox, bbox_pred, bbox_num = self.bbox_post_process.get_pred(
+            #     bbox, bbox_num, im_shape, scale_factor)
+            # origin_shape = self.bbox_post_process.get_origin_shape()
+            # mask_pred = self.mask_post_process(mask_out, bbox_pred, bbox_num,
+            #                                    origin_shape)
+            det_bboxes,det_labels,segm_results,det_nums=self.roi_head.simple_test(body_feats,self.inputs['image'],
+                                      self.inputs['img_no_normalize'],
+                                      rois,img_metas,
+                                      self.inputs['pre_computed_proposal'],
+                                        True
+                                        )
+            bboxes = paddle.concat([det_labels,det_bboxes],axis=2)
 
-            im_shape = self.inputs['im_shape']
-            scale_factor = self.inputs['scale_factor']
+            return bboxes, det_nums, segm_results
 
-            bbox, bbox_num = self.bbox_post_process(preds, (rois, rois_num),
-                                                    im_shape, scale_factor)
-            mask_out = self.mask_head(
-                body_feats, bbox, bbox_num, self.inputs, feat_func=feat_func)
-
-            # rescale the prediction back to origin image
-            bbox, bbox_pred, bbox_num = self.bbox_post_process.get_pred(
-                bbox, bbox_num, im_shape, scale_factor)
-            origin_shape = self.bbox_post_process.get_origin_shape()
-            mask_pred = self.mask_post_process(mask_out, bbox_pred, bbox_num,
-                                               origin_shape)
-            return bbox_pred, bbox_num, mask_pred
     def __forwar(self):
         body_feats = self.backbone(self.inputs)
         if self.neck is not None:
